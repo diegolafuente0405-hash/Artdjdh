@@ -1,20 +1,16 @@
 
-name: Compilar APK
+name: Build APK
 
 on:
+  push:
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Descomprimir proyecto
-        run: |
-          unzip -q trumpet-scales.zip -d build
-          d=$(dirname "$(find build -name package.json -not -path '*/node_modules/*' | head -1)")
-          echo "APP_DIR=$d" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -23,34 +19,31 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
-      - run: npm install
-        working-directory: ${{ env.APP_DIR }}
-
-      - run: npm test
-        working-directory: ${{ env.APP_DIR }}
-
-      - run: npm run www
-        working-directory: ${{ env.APP_DIR }}
-
-      - run: npx cap add android && npx cap sync android
-        working-directory: ${{ env.APP_DIR }}
-
-      - name: Icono del launcher
-        working-directory: ${{ env.APP_DIR }}
+      - name: Crear proyecto Capacitor
         run: |
-          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            for n in ic_launcher ic_launcher_round ic_launcher_foreground; do
-              cp icons/icon-512.png "android/app/src/main/res/mipmap-$d/$n.png"
-            done
-          done
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "app.escalas.trompeta",
+            "appName": "Escalas de Trompeta",
+            "webDir": "www",
+            "backgroundColor": "#0d1320"
+          }
+          JSON
+          npx cap add android
+          npx cap sync android
 
-      - run: cd android && ./gradlew assembleDebug
-        working-directory: ${{ env.APP_DIR }}
+      - name: Compilar APK debug
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - uses: actions/upload-artifact@v4
         with:
           name: escalas-trompeta-apk
-          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           
